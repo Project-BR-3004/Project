@@ -1,0 +1,65 @@
+## Metadata
+#Import drive
+from google.colab import drive
+drive.mount('/content/drive')
+
+#create df
+from datetime import datetime
+df = pd.read_csv('/content/drive/MyDrive/Data/metadata.csv')
+df
+
+#Change wrong words
+full_columns = ['Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin']
+abbrev_columns = ['Cipro', 'Cefo', 'Ceftaz', 'Gent']
+
+for full, abbrev in zip(full_columns, abbrev_columns):
+    df[full] = df[full].combine_first(df[abbrev])
+
+df = df.drop(columns=abbrev_columns)
+
+#annonimazation
+columns_to_drop = ['Name', 'Address']
+df = df.drop(columns = columns_to_drop)
+
+#change order
+df = df[['Sample_ID', 'Date_of_Birth', 'Species', 'Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin']]
+
+# change date
+df['Date_of_Birth'] = pd.to_datetime(df['Date_of_Birth'])
+
+reference_date = datetime(2025, 1, 1)
+
+df['Age'] = reference_date.year - df['Date_of_Birth'].dt.year
+
+df['Age'] -= (reference_date.month < df['Date_of_Birth'].dt.month) | (
+    (reference_date.month == df['Date_of_Birth'].dt.month) &
+    (reference_date.day < df['Date_of_Birth'].dt.day)
+)
+
+#Change order
+df = df[['Sample_ID', 'Age', 'Species', 'Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin']]
+
+# Save it to a csv file
+df.to_csv('/content/drive/MyDrive/Data/metadata_fixed.csv')
+
+
+##Variants
+#load in the variants data in a dataframe
+df_meta = df_meta = pd.read_csv('/content/drive/MyDrive/Data/metadata_fixed.csv')
+
+#Change order of Dataframe and name of columns
+df_meta = df_meta[['Sample_ID', 'Age', 'Species', 'Ciprofloxacin',
+       'Cefotaxime', 'Ceftazidime', 'Gentamicin']]
+df_meta['SampleID'] = df_meta['Sample_ID']
+df_meta = df_meta[['SampleID', 'Age', 'Species', 'Ciprofloxacin',
+       'Cefotaxime', 'Ceftazidime', 'Gentamicin']]
+
+#Merge dataframes
+df_merged = pd.merge(df, df_meta, on = 'SampleID')
+df_merged = df_merged.dropna()
+
+# Transpose columns and rows
+df_merged_t = df_merged.T
+
+#Create csv file
+df_merged_t.to_csv('/content/drive/MyDrive/Data/variants&Metadata_notfixed.csv')
