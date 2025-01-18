@@ -1,0 +1,83 @@
+setwd("C:\\Users\\cevat\\OneDrive\\Belgeler")  # Set working directory
+
+# Read the CSV file into a dataframe
+data <- read.csv("variants&Metadata_fixed12.csv", header = TRUE, stringsAsFactors = FALSE) 
+
+# Replace numeric data with corresponding base values
+data[data == 0] = "N"
+data[data == 1] = "A"
+data[data == 2] = "G"
+data[data == 3] = "C"
+data[data == 4] = "T"
+
+# Check the structure of the data
+dim(data)
+
+# Load kaos package
+library(kaos)
+
+# Transpose the data (samples as rows and SNPs as columns)
+data2 <- as.data.frame(t(data))
+data3 <- lapply(data2, as.character) 
+
+# Define the valid bases for CGR
+seq.base <- c("N", "A", "G", "C", "T")
+
+# Step 1: Calculate the number of zeros for each column (SNP)
+f <- function(x) sum(x == 0)  # Count the zeros (N in your data)
+num_zeros <- apply(data2, 2, f)  # Apply this function across each column (SNP)
+
+# Calculate threshold for 80% of the samples (80% rule means less than 20% zeros)
+sample_num <- nrow(data2)  # Number of samples
+threshold_zeros <- sample_num * 0.2  # More than 20% missing data (zeros) should be excluded
+
+# Filter out SNPs that have more than 20% zeros (i.e., less than 80% present)
+valid_snps <- num_zeros <= threshold_zeros  # Get a logical vector where TRUE means the SNP is valid
+
+# Filter the data to keep only the valid SNPs
+filtered_data <- data2[, valid_snps]
+
+# Transpose back if necessary
+data3_filtered <- lapply(filtered_data, as.character)
+
+# Step 2: Check how many SNPs are valid after filtering
+cat("Number of valid SNPs after filtering: ", ncol(filtered_data), "\n")
+
+# Step 3: Loop through each sequence and process it
+batch_size <- 100  # Save 100 matrices per CSV file
+batch_count <- 0
+cgr_matrices_list <- list()  # List to store matrices for batch saving
+
+for (i in seq_along(data3_filtered)) {
+  # Check the unique values in the current sequence
+  unique_values <- unique(data3_filtered[[i]])
+  print(unique_values)  # Optional: Check the unique bases
+  
+  # Replace unexpected bases with "N"
+  data3_filtered[[i]] <- gsub("[^AGCT]", "N", data3_filtered[[i]])
+  
+  # Run the CGR function
+  cgr_list <- cgr(data3_filtered[[i]], seq.base = seq.base, res = 200)
+  
+  # Extract the matrix from the result
+  cgr_matrix <- cgr_list$matrix
+  
+  # Add the CGR matrix to the list for batching
+  cgr_matrices_list[[i]] <- cgr_matrix
+  
+  # Save the matrices in batches
+  if (length(cgr_matrices_list) == batch_size) {
+    batch_count <- batch_count + 1
+    batch_file_name <- paste0("cgr_matrix_batch_", batch_count, ".csv")
+    write.csv(do.call(rbind, cgr_matrices_list), file = batch_file_name, quote = FALSE, row.names = FALSE)
+    cgr_matrices_list <- list()  # Reset the list for the next batch
+  }
+}
+
+# Save any remaining matrices if the total isn't a multiple of the batch size
+if (length(cgr_matrices_list) > 0) {
+  batch_count <- batch_count + 1
+  batch_file_name <- paste0("cgr_matrix_batch_", batch_count, ".csv")
+  write.csv(do.call(rbind, cgr_matrices_list), file = batch_file_name, quote = FALSE, row.names = FALSE)
+}
+
