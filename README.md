@@ -4,6 +4,7 @@ Antimicrobial resistance (AMR) is a significant global health threat to both hum
 
 In this study, we assessed the performance of logistic regression (LR), support vector machine (SVM), random forest (RF), and convolutional neural network (CNN) for predicting AMR to four antibiotics—ciprofloxacin (CIP), cefotaxime (CTX), ceftazidime (CTZ), and gentamicin (GEN)—using whole-genome sequencing data. We employed both label encoding and FCGR encoding techniques to evaluate the models' effectiveness.
 
+<img src="Figure1_steps.png"  />
 
 ## Data preprocessing
 
