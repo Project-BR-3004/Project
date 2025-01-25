@@ -1,7 +1,14 @@
-Data Curation and Preprocessing Overview
-In this project, there are four distinct files:
+##Prediction of antimicrobial resistance based on whole-genome sequencing and machine learning
 
-Chaos File: This file is considered negligible for the current task and is excluded from further processing at the moment.
+Antimicrobial resistance (AMR) is a significant global health threat to both humans and animals. Given the urgency of combating AMR, there is a pressing need for faster and more accurate diagnostic methods. Traditional antimicrobial susceptibility testing (AST), however, is often slow, low throughput, and limited to cultivable bacteria. In contrast, machine learning techniques offer a promising avenue for automating the prediction of AMR using genomic data from bacteria. Yet, there has been limited research on comparing different machine learning approaches for AMR prediction using various encoding methods and whole-genome sequencing (WGS) data without relying on prior knowledge.
+
+In this study, we assessed the performance of logistic regression (LR), support vector machine (SVM), random forest (RF), and convolutional neural network (CNN) for predicting AMR to four antibiotics—ciprofloxacin (CIP), cefotaxime (CTX), ceftazidime (CTZ), and gentamicin (GEN)—using whole-genome sequencing data. We employed both label encoding and FCGR encoding techniques to evaluate the models' effectiveness.
+
+<img src="Fig1-Workflow.png" style="zoom:24%;" />
+
+
+
+##Data preprocessing
 
 File 1 and File 2 (Curated Files):
 
