@@ -22,6 +22,7 @@ Label Encoding:
 <br>
 Once the data is curated, we perform label encoding (as detailed in the encoded_coding_file.py). This process converts categorical labels into numerical values, which makes the data easier to process for machine learning algorithms.
 <br>
+<br>
 Final Combined Dataset:
 <br>
 <br>
