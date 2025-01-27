@@ -8,10 +8,10 @@ In this study, we assessed the performance of logistic regression (LR), support 
 
 ## Data preprocessing
 
-File 1 and File 2 (Curated Files):
+Data curation:
 <br>
 <br>
-These files are individually curated, which involves several key preprocessing steps:
+This file includes the different way the dataframe has been cleaned, which involves several key preprocessing steps:
 Anonymization: Sensitive data is anonymized to ensure privacy and compliance.
 Handling Missing Values: Any rows with missing data are removed to ensure clean and complete datasets.
 Fixing Minor Errors: Small spelling mistakes and formatting errors are corrected.
