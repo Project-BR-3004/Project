@@ -9,7 +9,8 @@ In this study, we assessed the performance of logistic regression (LR), support 
 ## Data preprocessing
 
 File 1 and File 2 (Curated Files):
-
+<br>
+<br>
 These files are individually curated, which involves several key preprocessing steps:
 Anonymization: Sensitive data is anonymized to ensure privacy and compliance.
 Handling Missing Values: Any rows with missing data are removed to ensure clean and complete datasets.
@@ -23,7 +24,17 @@ Label Encoding:
 Once the data is curated, we perform label encoding (as detailed in the encoded_coding_file.py). This process converts categorical labels into numerical values, which makes the data easier to process for machine learning algorithms.
 <br>
 <br>
+Algorithm:
+<br>
+<br>
+The file contains six models: five Random Forest models and one Convolutional Neural Network (CNN) model.
+The first Random Forest model includes all drugs and attempts to predict drug resistance simultaneously for all drugs. In contrast, the other four Random Forest models make predictions for each drug individually.
+The Convolutional Neural Network model also predicts drug resistance for all drugs simultaneously, similar to the first Random Forest model.
+Additionally, the file includes an evaluation metric, which allows users to assess the model's performance immediately after testing. Metrics such as accuracy, recall, and others are provided, along with a confusion matrix to facilitate a clearer understanding of these values.
+<br>
+<br>
 Final Combined Dataset:
 <br>
 <br>
 The final file, named variants&metadata_fixed1.7z, contains the label-encoded and combined dataset. This file is the cleaned and processed version that was used as input for the various machine learning algorithms.
+
