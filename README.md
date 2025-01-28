@@ -24,6 +24,13 @@ Label Encoding:
 Once the data is curated, we perform label encoding (as detailed in the encoded_coding_file.py). This process converts categorical labels into numerical values, which makes the data easier to process for machine learning algorithms.
 <br>
 <br>
+Final Combined Dataset:
+<br>
+<br>
+The final file, named variants&metadata_fixed1.7z, contains the label-encoded and combined dataset. This file is the cleaned and processed version that was used as input for the various machine learning algorithms.
+<br>
+<br>
+## Model implementation
 Algorithm:
 <br>
 <br>
@@ -33,8 +40,5 @@ The Convolutional Neural Network model also predicts drug resistance for all dru
 Additionally, the file includes an evaluation metric, which allows users to assess the model's performance immediately after testing. Metrics such as accuracy, recall, and others are provided, along with a confusion matrix to facilitate a clearer understanding of these values.
 <br>
 <br>
-Final Combined Dataset:
-<br>
-<br>
-The final file, named variants&metadata_fixed1.7z, contains the label-encoded and combined dataset. This file is the cleaned and processed version that was used as input for the various machine learning algorithms.
+
 
