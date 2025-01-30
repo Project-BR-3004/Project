@@ -4,59 +4,177 @@ import numpy as np
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_predict, cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, roc_auc_score, classification_report, confusion_matrix
-from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, roc_auc_score, classification_report, confusion_matrix, roc_curve
+from sklearn.preprocessing import StandardScaler, label_binarize
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn decomposition import PCA
+from sklearn.feature_selection import RFE
 
-# Train model
+
+df = pd.read_csv('/content/drive/MyDrive/Data/variants&Metadata_fixed1.csv')
+#variants&Metadata_fixed1.csv
+
+#Training model
+from sklearn.decomposition import PCA
 pca = PCA(n_components=780)  # Reduce to 1000 features
 X_reduced = pca.fit_transform(X)
-X_train, X_test, y_train, y_test = train_test_split(X_reduced, y, test_size=0.2, stratify = y, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X_reduced, y_main, test_size=0.2, stratify = y_main, random_state=42)
+print(X_train.shape)
+print(y_train.shape)
+print(X_test.shape)
+print(y_test.shape)
+
+#Training model
+from sklearn.decomposition import PCA
+pca = PCA(n_components=780)  # Reduce to 1000 features
+X_reduced = pca.fit_transform(X)
+X_train, X_test, y_train, y_test = train_test_split(X_reduced, y_main, test_size=0.2, stratify = y_main, random_state=42)
+print(X_train.shape)
+print(y_train.shape)
+print(X_test.shape)
+print(y_test.shape)
 
 
-#Random Forest all drugs at the same time
-smote = SMOTE(random_state=42)
+#Logistic Regression
+base_model = LogisticRegression(max_iter=2000, random_state=42)
+multi_logistic = MultiOutputClassifier(base_model)
+# Train on the full dataset
+multi_logistic.fit(X_train, y_train)
+# Predict for all drugs
+y_pred = multi_logistic.predict(X_test)
+y_pred_proba = multi_logistic.predict_proba(X_test)
 
-for i in range(y_train.shape[1]):
-    X_drug = X_train  # All feature data remains the same
-    y_drug = y_train.iloc[:, i]  # Labels for the current drug
-    X_resampled, y_resampled = smote.fit_resample(X_drug, y_drug)
-
-for i in range(y_test.shape[1]):
+print("Classification Report for Each Drug (RandomForestClassifier):")
+for i in range(y_main.shape[1]):
     print(f"\nDrug {i+1}:")
     print(classification_report(y_test.iloc[:, i], y_pred[:, i]))
+
+
+#K-Fold (5-fold cross-validation) + ROC Curves for logistic regression
+base_model = LogisticRegression(max_iter=2000, random_state=42)
+multi_logistic = MultiOutputClassifier(base_model)
+cv_val = 5
+print("Classification Report for Each Drug (LogisticRegression with MultiOutputClassifier):")
+# Cross-validated predictions for all drugs
+y_pred = cross_val_predict(multi_logistic, X_train, y_train, cv=cv_val, method='predict')
+y_pred_proba = cross_val_predict(multi_logistic, X_train, y_train, cv=cv_val, method='predict_proba')
+
+# Print classification reports
+for i in range(y_train.shape[1]):
+    print(f"\nDrug {i+1}:")
+    print(classification_report(y_train.iloc[:, i], y_pred[:, i]))
+    # Compute ROC curve and AUC
+    fpr, tpr, _ = roc_curve(y_train.iloc[:, i], y_pred_proba[i][:, 1])  # Assuming binary classification
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, label=f'Drug {i+1} (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for reference
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curves for MultiOutput Logistic Regression')
+plt.legend()
+plt.show()
+
+
+
+#Random Forest for all the drugs together
+model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
+n_features_to_select = 25
+rfe = RFE(estimator=model_rf, n_features_to_select=n_features_to_select)
+rfe.fit(X_reduced, y_main)
+feature_ranking = rfe.ranking_  # Lower rank means more important
+selected_features = rfe.support_  # Boolean mask of selected features
+selected_feature_indices = [i for i, x in enumerate(selected_features) if x]
+print("Selected Features:", selected_feature_indices)
+
+X_reduced = X[:, selected_features]  # Reduce to selected features
+X_reduced
+
+X_train, X_test, y_train, y_test = train_test_split(X_reduced, y_main, test_size=0.2, stratify = y_main, random_state=42)
+
+model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
+multi_model_rf = MultiOutputClassifier(model_rf)
+multi_model_rf.fit(X_train, y_train)
+y_pred = multi_model_rf.predict(X_test)
+y_pred_proba = multi_model_rf.predict_proba(X_test)
+
+print("Classification Report for Each Drug (RandomForestClassifier):")
+for i in range(y_main.shape[1]):
+    print(f"\nDrug {i+1}:")
+    print(classification_report(y_test.iloc[:, i], y_pred[:, i]))
+
+
+#K-cross validation for the multi-model (Number of folds for crossvalidation is 5)
+cv_val = 5
+print("Classification Report for Each Drug (Multi-Output RandomForestClassifier):")
+# Perform cross-validation for the entire multi-output target
+cv_scores = cross_val_score(multi_model_rf, X_train, y_train, scoring='accuracy', cv=cv_val)
+predictions = cross_val_predict(multi_model_rf, X_train, y_train, cv=cv_val, method='predict_proba')
+print(f"\nMean Accuracy Across All Drugs: {cv_scores.mean().round(2)} ± {cv_scores.std().round(2)}")
+# Plot ROC curves
+plt.figure(figsize=(12, 8))
+for i in range(y_train.shape[1]):
+    print(f"\nDrug {i+1} Classification Report:")
+    y_true = y_train.iloc[:, i]
+    y_pred = np.argmax(predictions[i], axis=1)  # Convert probabilities to class labels
+    print(classification_report(y_true, y_pred))
+    # Compute ROC curve and AUC
+    fpr, tpr, _ = roc_curve(y_true, predictions[i][:, 1])  # Assuming binary classification
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, label=f'Drug {i+1} (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for reference
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curves for Multi-Output RandomForestClassifier')
+plt.legend()
+plt.show()
+
+#Creating ROC-curves for all drugs individually
+# convert y_pred_proba to a NumPy array
+y_pred_proba = np.array(y_pred_proba)
+print("y_pred_proba type:", type(y_pred_proba))
+print("y_pred_proba shape:", y_pred_proba.shape)
+
+# Classification Report and ROC Curves for each drug individually from multi-model
+print("Classification Report and ROC Curves for Each Drug (RandomForestClassifier):")
+for i in range(y_test.shape[1]):
+    print(f"\nDrug {i+1}:")
+    # Create classification report for each drug
+    print(classification_report(y_test.iloc[:, i], y_pred[:, i]))
     y_true = y_test.iloc[:, i].values  # True labels for current drug
-    y_proba = y_pred_proba[i, :, 1]  # Select probabilities for class 1 for the current drug
+    # Get predicted probabilities
+    y_proba = y_pred_proba[i, :, 1] 
     print(f"y_true shape: {y_true.shape}")
     print(f"y_proba shape: {y_proba.shape}")
     print("Class distribution for drug", i+1, ":")
     print(pd.Series(y_true).value_counts())
-## Plot the ROC curve
+    # Compute ROC curve and AUC
     fpr, tpr, _ = roc_curve(y_true, y_proba)
     roc_auc = auc(fpr, tpr)
     print(f"  AUC for drug {i+1} = {roc_auc:.2f}")
+    # Plot ROC curve
     plt.figure(figsize=(10, 8))
     plt.plot(fpr, tpr, label=f"Drug {i+1} (AUC = {roc_auc:.2f})")
-    plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for random classifier
+    plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for reference
     plt.title(f"ROC Curve for Drug {i+1}")
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
     plt.legend(loc="lower right")
     plt.show()
 
-#Random Forest all drugs seperately
-##Creating dataframe for each drug seperately
+
+
+#Random Forest for each drug individually
+#create dataframes for each drug
 df_Ciprofloxacin = df.drop(['Cefotaxime', 'Gentamicin', 'Ceftazidime'], axis = 1)
 df_Cefotaxime = df.drop(['Ciprofloxacin', 'Gentamicin', 'Ceftazidime'], axis = 1)
 df_Ceftazidime = df.drop(['Ciprofloxacin', 'Cefotaxime', 'Gentamicin'], axis = 1)
 df_Gentamicin = df.drop(['Ciprofloxacin', 'Cefotaxime', 'Ceftazidime'], axis = 1)
 
-##RF Ciprofloxacin
+#Random Forest of Cipofloxacin
 X = df_Ciprofloxacin.drop(['Ciprofloxacin','SampleID'], axis = 1)
 y = df_Ciprofloxacin[['Ciprofloxacin']]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify = y, random_state=42)
@@ -64,17 +182,12 @@ model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
 model_rf.fit(X_train, y_train)
 y_pred = model_rf.predict(X_test)
 print(classification_report(y_test, y_pred))
-from sklearn.metrics import roc_curve, roc_auc_score
-import matplotlib.pyplot as plt
 
-### Predict probabilities for the positive class
+# Predict probabilities for the positive class
 y_pred_prob = model_rf.predict_proba(X_test)[:, 1]
-
-### Compute ROC curve and AUC score
+# Compute and plot ROC curve and AUC score
 fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob, pos_label=model_rf.classes_[1])
 roc_auc = roc_auc_score(y_test, y_pred_prob)
-
-### Plot the ROC curve
 plt.figure(figsize=(8, 6))
 plt.plot(fpr, tpr, color='darkorange', lw=2, label=f"ROC Curve (AUC = {roc_auc:.2f})")
 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label="Random Guess")
@@ -85,25 +198,27 @@ plt.legend(loc="lower right")
 plt.grid(alpha=0.4)
 plt.show()
 
-##RF Cefotaxime
-X = df_Cefotaxime.drop(['Ciprofloxacin','SampleID'], axis = 1)
+#K-fold cross-validation for Cipofloxacin
+cv_val = 5
+cv_scores = cross_val_score(model_rf, X_train, y_train, scoring='accuracy', cv=cv_val)
+prediction = cross_val_predict(model_rf, X_test, y_test)
+print(f"{cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+
+#Random Forest of Cefotaxime
+X = df_Cefotaxime.drop(['Cefotaxime','SampleID'], axis = 1)
 y = df_Cefotaxime[['Cefotaxime']]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify = y, random_state=42)
 model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
 model_rf.fit(X_train, y_train)
 y_pred = model_rf.predict(X_test)
 print(classification_report(y_test, y_pred))
-from sklearn.metrics import roc_curve, roc_auc_score
-import matplotlib.pyplot as plt
 
-### Predict probabilities for the positive class
+# Predict probabilities for the positive class
 y_pred_prob = model_rf.predict_proba(X_test)[:, 1]
-
-### Compute ROC curve and AUC score
+# Compute and plot ROC curve and AUC score
 fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob, pos_label=model_rf.classes_[1])
 roc_auc = roc_auc_score(y_test, y_pred_prob)
-
-### Plot the ROC curve
 plt.figure(figsize=(8, 6))
 plt.plot(fpr, tpr, color='darkorange', lw=2, label=f"ROC Curve (AUC = {roc_auc:.2f})")
 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label="Random Guess")
@@ -114,25 +229,27 @@ plt.legend(loc="lower right")
 plt.grid(alpha=0.4)
 plt.show()
 
-##RF Ceftazidime
-X = df_Ceftazidime.drop(['Ciprofloxacin','SampleID'], axis = 1)
+#K-fold cross validation of Cefotaxime
+cv_val = 5
+cv_scores = cross_val_score(model_rf, X_train, y_train, scoring='accuracy', cv=cv_val)
+prediction = cross_val_predict(model_rf, X_test, y_test)
+print(f"{cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+
+#Random forest of Ceftazidime
+X = df_Ceftazidime.drop(['Ceftazidime','SampleID'], axis = 1)
 y = df_Ceftazidime[['Ceftazidime']]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify = y, random_state=42)
 model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
 model_rf.fit(X_train, y_train)
 y_pred = model_rf.predict(X_test)
 print(classification_report(y_test, y_pred))
-from sklearn.metrics import roc_curve, roc_auc_score
-import matplotlib.pyplot as plt
 
-### Predict probabilities for the positive class
+# Predict probabilities for the positive class
 y_pred_prob = model_rf.predict_proba(X_test)[:, 1]
-
-### Compute ROC curve and AUC score
+# Compute ROC curve and AUC score
 fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob, pos_label=model_rf.classes_[1])
 roc_auc = roc_auc_score(y_test, y_pred_prob)
-
-### Plot the ROC curve
 plt.figure(figsize=(8, 6))
 plt.plot(fpr, tpr, color='darkorange', lw=2, label=f"ROC Curve (AUC = {roc_auc:.2f})")
 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label="Random Guess")
@@ -143,25 +260,27 @@ plt.legend(loc="lower right")
 plt.grid(alpha=0.4)
 plt.show()
 
-##RF Gentamicin
-X = df_Gentamicin.drop(['Ciprofloxacin','SampleID'], axis = 1)
+#K-fold cross validation of Ceftazidime
+cv_val = 5
+cv_scores = cross_val_score(model_rf, X_train, y_train, scoring='accuracy', cv=cv_val)
+prediction = cross_val_predict(model_rf, X_test, y_test)
+print(f"{cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+
+#Random forest of Gentamicin
+X = df_Gentamicin.drop(['Gentamicin','SampleID'], axis = 1)
 y = df_Gentamicin[['Gentamicin']]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify = y, random_state=42)
 model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
 model_rf.fit(X_train, y_train)
 y_pred = model_rf.predict(X_test)
 print(classification_report(y_test, y_pred))
-from sklearn.metrics import roc_curve, roc_auc_score
-import matplotlib.pyplot as plt
 
-### Predict probabilities for the positive class
+# Predict probabilities for the positive class
 y_pred_prob = model_rf.predict_proba(X_test)[:, 1]
-
-### Compute ROC curve and AUC score
+# Compute ROC curve and AUC score
 fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob, pos_label=model_rf.classes_[1])
 roc_auc = roc_auc_score(y_test, y_pred_prob)
-
-### Plot the ROC curve
 plt.figure(figsize=(8, 6))
 plt.plot(fpr, tpr, color='darkorange', lw=2, label=f"ROC Curve (AUC = {roc_auc:.2f})")
 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label="Random Guess")
@@ -172,35 +291,125 @@ plt.legend(loc="lower right")
 plt.grid(alpha=0.4)
 plt.show()
 
-#CNN for all drugs
-X = df.drop(['Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin', 'SampleID'], axis = 1)
-y = df[['Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin']]
-from sklearn.decomposition import PCA
-pca = PCA(n_components=780)  # Reduce to 780 features
-X_reduced = pca.fit_transform(X)
-X_train, X_test, y_train, y_test = train_test_split(X_reduced, y, test_size=0.2, stratify = y, random_state=42)
-y_train = y_train.replace({'S': 0, 'R': 1, 'Susceptible' : 0, 'Resistant' : 0, 'r' : 1, 's' : 0})
-y_train = np.array(y_train, dtype=np.int32)
-X_train = np.array(X_train, dtype=np.int32)
-if len(y_train.shape) == 1:
-    y_train = y_train.reshape(-1, 1)  # Single-output reshape
+#K-fold Cross Validation of Gentamicin
+cv_val = 5
+cv_scores = cross_val_score(model_rf, X_train, y_train, scoring='accuracy', cv=cv_val)
+prediction = cross_val_predict(model_rf, X_test, y_test)
+print(f"{cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+cv_val = 5
+cv_scores = cross_val_score(model_rf, X_train, y_train, scoring='accuracy', cv=cv_val)
+prediction = cross_val_predict(model_rf, X_test, y_test)
+print(f"{cv_scores.mean().round(2)} accuracy with a standard deviation of {cv_scores.std().round(2)}")
+
+
+
+#Convolutional Neural Network (CNN)
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv1D, MaxPooling1D, Flatten, Dense, Dropout
+from tensorflow.keras import activations
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.utils import to_categorical 
+from sklearn.model_selection import train_test_split
+from sklearn.utils import resample
+from sklearn.model_selection import KFold,StratifiedKFold
+from sklearn.metrics import matthews_corrcoef,auc, roc_curve,classification_report, confusion_matrix,average_precision_score, precision_recall_curve
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_class_weight
+from keras.utils import to_categorical
+from keras.models import Sequential
+from keras.layers import Dense,Dropout, Flatten, Conv1D, Conv2D, MaxPooling1D,MaxPooling2D
+from keras.callbacks import ModelCheckpoint
+from keras import backend as K
+from keras.layers import BatchNormalization
+
+X = df.drop(['Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin', 'SampleID'], axis = 1)
+y = df[['Ciprofloxacin', 'Cefotaxime', 'Ceftazidime', 'Gentamicin']]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify = y, random_state=42)
+y_train = y_train.replace({'S': 0, 'R': 1, 'Susceptible' : 0, 'Resistant' : 1, 'r' : 1, 's' : 0})
+X_train = np.array(X_train, dtype=np.int32)
+y_train = np.array(y_train, dtype=np.int32)
+if len(y_train.shape) == 1:
+    y_train = y_train.reshape(-1, 1)
+
 model = Sequential()
-model.add(Conv1D(64, kernel_size=3, activation='relu', input_shape=(780, 1)))
-model.add(MaxPooling1D(pool_size=2))
-model.add(Dropout(0.3))  # Regularization to avoid overfitting
+model.add(Conv1D(filters=8, kernel_size=3,activation='relu', input_shape=(X_test.shape[1],1)))
+model.add(BatchNormalization())
+model.add(Conv1D(filters=8, kernel_size=3, padding='same', activation='relu'))
+#model.add(BatchNormalization())
+model.add(MaxPooling1D(pool_size=(2)))
+model.add(Conv1D(filters=16, kernel_size=3, padding='same', activation='relu'))
+model.add(BatchNormalization())
+model.add(Conv1D(filters=16, kernel_size=3, padding='same', activation='relu'))
+#model.add(BatchNormalization())
+model.add(MaxPooling1D(pool_size=(2)))
 model.add(Flatten())
 model.add(Dense(128, activation='relu'))
-model.add(Dropout(0.3))
-model.add(Dense(4, activation='sigmoid'))  # For multi-label classification
+model.add(Dropout(0.2))
+model.add(Dense(4,activation='softmax'))
+
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-from tensorflow.keras.callbacks import EarlyStopping
+
 early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, verbose=1)
 history = model.fit(X_train, y_train,
                     validation_split=0.2,
                     epochs=100,
-                    batch_size=32)
+                    batch_size=8)
+y_test = np.array(y_test, dtype=np.int32)
+X_test = np.array(X_test, dtype=np.int32)
+
+y_pred_proba = model.predict(X_test)  
+y_pred = np.argmax(y_pred_proba, axis=1)
+y_true = np.argmax(y_test, axis=1)
+# Compute classification report
+report = classification_report(y_true, y_pred)
+print("Classification Report:")
+print(report)
+
+# Normalize the data
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+# PCA
+pca = PCA(n_components=780)
+X_reduced = pca.fit_transform(X_scaled)
+
+# Split the data into train (80%) and test(20%)
+X_train, X_test, y_train, y_test = train_test_split(X_reduced, y, test_size=0.2, stratify=y, random_state=42)
+X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
+y_train_np = y_train.to_numpy()
+
+# Compute sample weights
+sample_weights = compute_sample_weight(class_weight='balanced', y=y_train)
+# CNN Model
+model = Sequential()
+model.add(Conv1D(64, kernel_size=3, activation='relu', input_shape=(780, 1)))
+model.add(MaxPooling1D(pool_size=2))
+model.add(Dropout(0.3))
+model.add(Conv1D(128, kernel_size=3, activation='relu'))
+model.add(MaxPooling1D(pool_size=2))
+model.add(Dropout(0.3))
+model.add(Flatten())
+model.add(Dense(128, activation='relu'))
+model.add(Dropout(0.3))
+model.add(Dense(4, activation='softmax'))
+# Compile
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+# Callbacks
+early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, verbose=1)
+# Train
+history = model.fit(X_train, y_train,
+                    validation_split=0.2,
+                    epochs=100,
+                    batch_size=32,
+                    sample_weight=sample_weights,
+                    callbacks=[early_stopping, lr_scheduler])
+y_test = np.array(y_test, dtype=np.int32)
+X_test = np.array(X_test, dtype=np.int32)
 loss, accuracy = model.evaluate(X_test, y_test)
 print(f"Test Accuracy: {accuracy}")
