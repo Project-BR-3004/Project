@@ -22,9 +22,9 @@ After these steps, the two curated files are combined into a single dataset and 
 Once the data is curated, we perform label encoding (as detailed in the encoded_coding_file.py). This process converts categorical labels into numerical values, which makes the data easier to process for machine learning algorithms.
 <br>
 <br>
-**Final Combined Dataset:**
+**Dataset File:**
 <br>
-The final file, named variants&metadata_fixed1.7z, contains the label-encoded and combined dataset. This file is the cleaned and processed version that was used as input for the various machine learning algorithms.
+The final file, named variants&metadata_file.7z, contains both the variant and metadata file, which are not curated yet. Nevertheless the metadata does not include any type of sensitive data due to legal repercussions.
 <br>
 <br>
 ## Model implementation
